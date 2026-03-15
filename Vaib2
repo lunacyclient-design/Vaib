@@ -1,0 +1,1873 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Вайб — социальная сеть</title>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #f8f9ff;
+    --white: #ffffff;
+    --blue: #3b82f6;
+    --blue-light: #eff6ff;
+    --blue-dark: #1d4ed8;
+    --gray: #6b7280;
+    --gray-light: #f3f4f6;
+    --border: #e5e7eb;
+    --text: #111827;
+    --text-soft: #6b7280;
+    --shadow: 0 2px 12px rgba(59,130,246,0.08);
+    --shadow-md: 0 4px 24px rgba(59,130,246,0.14);
+    --radius: 16px;
+    --radius-sm: 10px;
+    --transition: all 0.22s cubic-bezier(.4,0,.2,1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ——— AUTH SCREEN ——— */
+  #authScreen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #eff6ff 0%, #f8f9ff 60%, #e0f2fe 100%);
+  }
+
+  .auth-card {
+    background: var(--white);
+    border-radius: 24px;
+    box-shadow: var(--shadow-md);
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 420px;
+    animation: fadeUp 0.4s ease;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .auth-logo {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--blue);
+    text-align: center;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+  }
+
+  .auth-sub {
+    text-align: center;
+    color: var(--text-soft);
+    font-size: 14px;
+    margin-bottom: 28px;
+  }
+
+  .auth-tabs {
+    display: flex;
+    background: var(--gray-light);
+    border-radius: var(--radius-sm);
+    padding: 4px;
+    margin-bottom: 24px;
+    gap: 4px;
+  }
+
+  .auth-tab {
+    flex: 1;
+    padding: 9px;
+    border: none;
+    background: transparent;
+    border-radius: 7px;
+    cursor: pointer;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text-soft);
+    transition: var(--transition);
+  }
+
+  .auth-tab.active {
+    background: var(--white);
+    color: var(--blue);
+    box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-soft);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .form-group input, .form-group textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: 'Nunito', sans-serif;
+    font-size: 15px;
+    color: var(--text);
+    background: var(--white);
+    transition: var(--transition);
+    outline: none;
+    resize: none;
+  }
+
+  .form-group input:focus, .form-group textarea:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: 13px;
+    background: var(--blue);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: 16px;
+    cursor: pointer;
+    transition: var(--transition);
+    letter-spacing: 0.3px;
+  }
+
+  .btn-primary:hover {
+    background: var(--blue-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(59,130,246,0.3);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .auth-error {
+    color: #ef4444;
+    font-size: 13px;
+    text-align: center;
+    margin-top: 10px;
+    min-height: 18px;
+  }
+
+  /* ——— APP LAYOUT ——— */
+  #appScreen { display: none; min-height: 100vh; }
+
+  /* ——— TOPBAR ——— */
+  .topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 60px;
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    z-index: 200;
+    gap: 16px;
+  }
+
+  .burger-btn {
+    width: 40px; height: 40px;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: var(--transition);
+    flex-shrink: 0;
+  }
+
+  .burger-btn:hover { background: var(--blue-light); }
+  .burger-btn.active { background: var(--blue-light); }
+
+  .burger-btn span {
+    display: block;
+    width: 20px; height: 2px;
+    background: var(--text);
+    border-radius: 2px;
+    transition: var(--transition);
+  }
+
+  .burger-btn.active span:nth-child(1) { transform: translateY(7px) rotate(45deg); background: var(--blue); }
+  .burger-btn.active span:nth-child(2) { opacity: 0; }
+  .burger-btn.active span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); background: var(--blue); }
+
+  .topbar-logo {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--blue);
+    flex: 1;
+    letter-spacing: -0.5px;
+  }
+
+  .topbar-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .icon-btn {
+    width: 38px; height: 38px;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: var(--transition);
+    position: relative;
+    color: var(--text);
+  }
+
+  .icon-btn:hover { background: var(--blue-light); color: var(--blue); }
+  .icon-btn.active { background: var(--blue-light); color: var(--blue); }
+
+  .notif-badge {
+    position: absolute;
+    top: 4px; right: 4px;
+    width: 8px; height: 8px;
+    background: #ef4444;
+    border-radius: 50%;
+    border: 2px solid white;
+    display: none;
+  }
+
+  .notif-badge.show { display: block; }
+
+  .avatar-btn {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    cursor: pointer;
+    overflow: hidden;
+    transition: var(--transition);
+    background: var(--blue-light);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; color: var(--blue); font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .avatar-btn:hover { border-color: var(--blue); }
+
+  .avatar-btn img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+
+  /* ——— SIDEBAR ——— */
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.18);
+    z-index: 299;
+    backdrop-filter: blur(2px);
+  }
+
+  .sidebar-overlay.show { display: block; }
+
+  .sidebar {
+    position: fixed;
+    top: 0; left: -280px;
+    width: 260px;
+    height: 100vh;
+    background: var(--white);
+    box-shadow: var(--shadow-md);
+    z-index: 300;
+    transition: left 0.3s cubic-bezier(.4,0,.2,1);
+    display: flex;
+    flex-direction: column;
+    padding: 70px 0 20px;
+  }
+
+  .sidebar.open { left: 0; }
+
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 13px 24px;
+    cursor: pointer;
+    transition: var(--transition);
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--text);
+    border-left: 3px solid transparent;
+  }
+
+  .sidebar-item:hover {
+    background: var(--blue-light);
+    color: var(--blue);
+    border-left-color: var(--blue);
+  }
+
+  .sidebar-item.active {
+    background: var(--blue-light);
+    color: var(--blue);
+    border-left-color: var(--blue);
+  }
+
+  .sidebar-icon { font-size: 20px; }
+
+  .sidebar-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 12px 0;
+  }
+
+  .sidebar-logout {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 13px 24px;
+    cursor: pointer;
+    transition: var(--transition);
+    font-weight: 700;
+    font-size: 15px;
+    color: #ef4444;
+  }
+
+  .sidebar-logout:hover { background: #fef2f2; }
+
+  /* ——— MAIN CONTENT ——— */
+  .main-content {
+    padding-top: 60px;
+    max-width: 680px;
+    margin: 0 auto;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* ——— PANELS ——— */
+  .panel { display: none; padding: 20px 0 80px; animation: fadeUp 0.25s ease; }
+  .panel.active { display: block; }
+
+  /* ——— CREATE POST ——— */
+  .create-post-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+  }
+
+  .create-post-header {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .create-post-textarea {
+    width: 100%;
+    border: none;
+    resize: none;
+    font-family: 'Nunito', sans-serif;
+    font-size: 15px;
+    color: var(--text);
+    outline: none;
+    min-height: 70px;
+    background: transparent;
+    line-height: 1.6;
+  }
+
+  .create-post-textarea::placeholder { color: #9ca3af; }
+
+  .create-post-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .image-preview-wrap {
+    margin: 10px 0;
+    position: relative;
+    display: none;
+  }
+
+  .image-preview-wrap.show { display: block; }
+
+  .image-preview-wrap img {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+  }
+
+  .remove-img-btn {
+    position: absolute;
+    top: 6px; right: 6px;
+    background: rgba(0,0,0,0.5);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 26px; height: 26px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .attach-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 22px;
+    color: var(--text-soft);
+    transition: var(--transition);
+    padding: 4px 8px;
+    border-radius: 8px;
+  }
+
+  .attach-btn:hover { color: var(--blue); background: var(--blue-light); }
+
+  .post-submit-btn {
+    padding: 9px 22px;
+    background: var(--blue);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: 14px;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+
+  .post-submit-btn:hover {
+    background: var(--blue-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(59,130,246,0.3);
+  }
+
+  .post-submit-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* ——— POST CARD ——— */
+  .post-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    margin-bottom: 16px;
+    overflow: hidden;
+    animation: fadeUp 0.3s ease;
+  }
+
+  .post-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px 12px;
+  }
+
+  .post-avatar {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: var(--blue-light);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; color: var(--blue); font-size: 15px;
+    cursor: pointer;
+    transition: var(--transition);
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 2px solid var(--border);
+  }
+
+  .post-avatar:hover { border-color: var(--blue); }
+
+  .post-avatar img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+
+  .post-meta { flex: 1; }
+
+  .post-username {
+    font-weight: 800;
+    font-size: 14px;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+
+  .post-username:hover { color: var(--blue); }
+
+  .post-time {
+    font-size: 12px;
+    color: var(--text-soft);
+    margin-top: 1px;
+  }
+
+  .post-body {
+    padding: 0 20px 14px;
+  }
+
+  .post-text {
+    font-size: 15px;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .post-image {
+    width: 100%;
+    max-height: 360px;
+    object-fit: cover;
+    display: block;
+    margin-top: 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+
+  .post-actions {
+    display: flex;
+    gap: 4px;
+    padding: 8px 16px 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .action-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text-soft);
+    transition: var(--transition);
+  }
+
+  .action-btn:hover { background: var(--blue-light); color: var(--blue); }
+
+  .action-btn.liked { color: #ef4444; }
+  .action-btn.liked:hover { background: #fef2f2; color: #dc2626; }
+
+  .action-btn .icon { font-size: 17px; }
+
+  /* ——— COMMENTS ——— */
+  .comments-section {
+    padding: 0 20px 16px;
+    display: none;
+  }
+
+  .comments-section.show { display: block; }
+
+  .comment-input-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    align-items: center;
+  }
+
+  .comment-input {
+    flex: 1;
+    padding: 9px 14px;
+    border: 2px solid var(--border);
+    border-radius: 20px;
+    font-family: 'Nunito', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: var(--transition);
+    background: var(--bg);
+  }
+
+  .comment-input:focus {
+    border-color: var(--blue);
+    background: white;
+  }
+
+  .comment-send-btn {
+    width: 34px; height: 34px;
+    background: var(--blue);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    transition: var(--transition);
+    flex-shrink: 0;
+  }
+
+  .comment-send-btn:hover {
+    background: var(--blue-dark);
+    transform: scale(1.08);
+  }
+
+  .comment-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    animation: fadeUp 0.2s ease;
+  }
+
+  .comment-avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--blue-light);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 11px; color: var(--blue);
+    flex-shrink: 0;
+    overflow: hidden;
+    border: 1.5px solid var(--border);
+  }
+
+  .comment-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+  .comment-bubble {
+    background: var(--gray-light);
+    border-radius: 14px;
+    padding: 8px 12px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .comment-bubble strong {
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .comment-bubble strong:hover { color: var(--blue); }
+
+  .comment-bubble p {
+    font-size: 13px;
+    margin-top: 2px;
+    color: var(--text);
+    word-break: break-word;
+  }
+
+  /* ——— PROFILE VIEW ——— */
+  .profile-view { animation: fadeUp 0.25s ease; padding-bottom: 80px; }
+
+  .profile-banner {
+    height: 140px;
+    background: linear-gradient(135deg, #3b82f6, #06b6d4);
+    border-radius: 0 0 0 0;
+    position: relative;
+  }
+
+  .profile-info-card {
+    background: var(--white);
+    border-radius: 0 0 var(--radius) var(--radius);
+    padding: 0 20px 20px;
+    border: 1px solid var(--border);
+    border-top: none;
+    margin-bottom: 16px;
+  }
+
+  .profile-avatar-wrap {
+    margin-top: -44px;
+    margin-bottom: 12px;
+    position: relative;
+    width: fit-content;
+  }
+
+  .profile-big-avatar {
+    width: 88px; height: 88px;
+    border-radius: 50%;
+    border: 4px solid white;
+    background: var(--blue-light);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 28px; color: var(--blue);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .profile-big-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+  .profile-name {
+    font-size: 20px;
+    font-weight: 800;
+  }
+
+  .profile-handle {
+    font-size: 14px;
+    color: var(--text-soft);
+    margin-bottom: 8px;
+  }
+
+  .profile-bio {
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 14px;
+    line-height: 1.6;
+  }
+
+  .profile-stats {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 16px;
+  }
+
+  .stat-item {
+    text-align: center;
+  }
+
+  .stat-num {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text);
+    display: block;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-soft);
+    font-weight: 600;
+  }
+
+  .follow-btn {
+    padding: 9px 24px;
+    background: var(--blue);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: 14px;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+
+  .follow-btn:hover {
+    background: var(--blue-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(59,130,246,0.3);
+  }
+
+  .follow-btn.following {
+    background: white;
+    color: var(--blue);
+    border: 2px solid var(--blue);
+  }
+
+  .follow-btn.following:hover {
+    background: #fef2f2;
+    color: #ef4444;
+    border-color: #ef4444;
+  }
+
+  /* ——— MY PROFILE PANEL ——— */
+  .my-profile-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .my-profile-header {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .my-avatar-edit {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    background: var(--blue-light);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 22px; color: var(--blue);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    border: 3px solid var(--border);
+    transition: var(--transition);
+    flex-shrink: 0;
+  }
+
+  .my-avatar-edit:hover { border-color: var(--blue); }
+
+  .my-avatar-edit img { width: 100%; height: 100%; object-fit: cover; }
+
+  .my-avatar-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    transition: var(--transition);
+    color: white;
+    font-size: 20px;
+  }
+
+  .my-avatar-edit:hover .my-avatar-overlay { opacity: 1; }
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 800;
+    margin-bottom: 14px;
+    color: var(--text);
+  }
+
+  .btn-save {
+    padding: 10px 24px;
+    background: var(--blue);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: 14px;
+    cursor: pointer;
+    transition: var(--transition);
+    margin-top: 4px;
+  }
+
+  .btn-save:hover {
+    background: var(--blue-dark);
+    transform: translateY(-1px);
+  }
+
+  /* ——— NOTIFICATIONS ——— */
+  .notif-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    animation: fadeUp 0.2s ease;
+  }
+
+  .notif-icon {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: var(--blue-light);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .notif-text { font-size: 14px; line-height: 1.5; }
+  .notif-text strong { color: var(--blue); }
+  .notif-time { font-size: 12px; color: var(--text-soft); margin-top: 3px; }
+
+  /* ——— MESSAGES ——— */
+  .msg-panel-header {
+    font-size: 20px;
+    font-weight: 800;
+    margin-bottom: 16px;
+    padding-top: 20px;
+  }
+
+  .msg-coming-soon {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 40px 24px;
+    text-align: center;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+  }
+
+  .msg-coming-soon .big-emoji { font-size: 48px; margin-bottom: 12px; }
+  .msg-coming-soon p { color: var(--text-soft); font-size: 15px; }
+
+  .conn-status { display: none !important; }
+
+  /* ——— IMAGE MODAL ——— */
+  .img-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .img-modal.show { display: flex; }
+
+  .img-modal img {
+    max-width: 90vw;
+    max-height: 90vh;
+    border-radius: var(--radius-sm);
+    object-fit: contain;
+  }
+
+  .img-modal-close {
+    position: absolute;
+    top: 20px; right: 20px;
+    color: white;
+    font-size: 28px;
+    cursor: pointer;
+    background: rgba(255,255,255,0.15);
+    border: none;
+    border-radius: 50%;
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    transition: var(--transition);
+  }
+
+  .img-modal-close:hover { background: rgba(255,255,255,0.25); }
+
+  /* ——— EMPTY STATE ——— */
+  .empty-state {
+    text-align: center;
+    padding: 48px 0;
+    color: var(--text-soft);
+  }
+
+  .empty-state .emoji { font-size: 44px; margin-bottom: 12px; }
+  .empty-state p { font-size: 15px; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+  /* RESPONSIVE */
+  @media (max-width: 600px) {
+    .auth-card { margin: 16px; padding: 28px 20px; }
+    .main-content { padding-left: 10px; padding-right: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="auth-logo">✦ Вайб</div>
+    <div class="auth-sub">Твоя социальная сеть</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchAuthTab('login')">Войти</button>
+      <button class="auth-tab" onclick="switchAuthTab('register')">Регистрация</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="loginForm">
+      <div class="form-group">
+        <label>Имя пользователя</label>
+        <input type="text" id="loginUser" placeholder="@username" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Пароль</label>
+        <input type="password" id="loginPass" placeholder="••••••••">
+      </div>
+      <button class="btn-primary" onclick="doLogin()">Войти</button>
+      <div class="auth-error" id="loginError"></div>
+    </div>
+
+    <!-- REGISTER -->
+    <div id="registerForm" style="display:none;">
+      <div class="form-group">
+        <label>Имя</label>
+        <input type="text" id="regName" placeholder="Твоё имя" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Имя пользователя (без @)</label>
+        <input type="text" id="regUser" placeholder="username" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>О себе (необязательно)</label>
+        <textarea id="regBio" placeholder="Расскажи немного о себе..." rows="2"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Пароль</label>
+        <input type="password" id="regPass" placeholder="Придумай пароль">
+      </div>
+      <div class="form-group">
+        <label>Повторить пароль</label>
+        <input type="password" id="regPass2" placeholder="Повтори пароль">
+      </div>
+      <button class="btn-primary" onclick="doRegister()">Создать аккаунт</button>
+      <div class="auth-error" id="registerError"></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP SCREEN -->
+<div id="appScreen">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <button class="burger-btn" id="burgerBtn" onclick="toggleSidebar()">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="topbar-logo">✦ Вайб</div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="notifBtn" onclick="showPanel('notifications')" title="Уведомления">
+        🔔
+        <span class="notif-badge" id="notifBadge"></span>
+      </button>
+      <button class="icon-btn" onclick="showPanel('messages')" title="Сообщения">💬</button>
+      <div class="avatar-btn" id="topbarAvatar" onclick="showMyProfile()" title="Мой профиль"></div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR OVERLAY -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-item active" onclick="showPanel('feed'); closeSidebar();">
+      <span class="sidebar-icon">🏠</span> Лента
+    </div>
+    <div class="sidebar-item" onclick="showMyProfile(); closeSidebar();">
+      <span class="sidebar-icon">👤</span> Мой профиль
+    </div>
+    <div class="sidebar-item" onclick="showPanel('notifications'); closeSidebar();">
+      <span class="sidebar-icon">🔔</span> Уведомления
+    </div>
+    <div class="sidebar-item" onclick="showPanel('messages'); closeSidebar();">
+      <span class="sidebar-icon">💬</span> Сообщения
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-logout" onclick="doLogout()">
+      <span class="sidebar-icon">🚪</span> Выйти
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-content">
+
+    <!-- FEED -->
+    <div class="panel active" id="panel-feed">
+      <!-- Create Post -->
+      <div class="create-post-card">
+        <div class="create-post-header">
+          <div class="post-avatar" id="createPostAvatar"></div>
+          <textarea class="create-post-textarea" id="postTextInput" placeholder="Что у тебя нового? ✨" rows="3"></textarea>
+        </div>
+        <div class="image-preview-wrap" id="imgPreviewWrap">
+          <img id="imgPreview" src="" alt="">
+          <button class="remove-img-btn" onclick="removeImage()">✕</button>
+        </div>
+        <div class="create-post-footer">
+          <div>
+            <input type="file" id="imgFileInput" accept="image/*" style="display:none" onchange="handleImageSelect(event)">
+            <button class="attach-btn" onclick="document.getElementById('imgFileInput').click()" title="Добавить фото">📷</button>
+          </div>
+          <button class="post-submit-btn" onclick="publishPost()">Опубликовать</button>
+        </div>
+      </div>
+
+      <!-- Posts container -->
+      <div id="postsContainer"></div>
+    </div>
+
+    <!-- PROFILE PANEL -->
+    <div class="panel" id="panel-myprofile">
+      <div class="my-profile-card">
+        <div class="section-title">Мой профиль</div>
+        <div class="my-profile-header">
+          <div class="my-avatar-edit" id="myAvatarEdit" onclick="document.getElementById('avatarFileInput').click()">
+            <div class="my-avatar-overlay">📷</div>
+          </div>
+          <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="handleAvatarUpload(event)">
+          <div>
+            <div id="myProfileName" style="font-weight:800;font-size:17px;"></div>
+            <div id="myProfileHandle" style="color:var(--text-soft);font-size:13px;"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Имя</label>
+          <input type="text" id="editName" placeholder="Твоё имя">
+        </div>
+        <div class="form-group">
+          <label>О себе</label>
+          <textarea id="editBio" placeholder="Расскажи о себе..." rows="3"></textarea>
+        </div>
+        <button class="btn-save" onclick="saveProfile()">💾 Сохранить</button>
+      </div>
+
+      <div class="my-profile-card">
+        <div class="section-title">Мои посты</div>
+        <div id="myPostsContainer"></div>
+      </div>
+    </div>
+
+    <!-- NOTIFICATIONS -->
+    <div class="panel" id="panel-notifications">
+      <div style="font-size:20px;font-weight:800;margin-bottom:16px;padding-top:20px;">Уведомления</div>
+      <div id="notifContainer">
+        <div class="empty-state">
+          <div class="emoji">🔔</div>
+          <p>Пока уведомлений нет</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- MESSAGES -->
+    <div class="panel" id="panel-messages">
+      <div class="msg-panel-header">Сообщения</div>
+      <div class="msg-coming-soon">
+        <div class="big-emoji">💬</div>
+        <p>Личные сообщения скоро появятся!</p>
+      </div>
+    </div>
+
+    <!-- OTHER USER PROFILE -->
+    <div class="panel" id="panel-userprofile">
+      <div class="profile-view">
+        <div class="profile-banner" id="profileBanner"></div>
+        <div class="profile-info-card">
+          <div class="profile-avatar-wrap">
+            <div class="profile-big-avatar" id="profileBigAvatar"></div>
+          </div>
+          <div class="profile-name" id="profileViewName"></div>
+          <div class="profile-handle" id="profileViewHandle"></div>
+          <div class="profile-bio" id="profileViewBio"></div>
+          <div class="profile-stats">
+            <div class="stat-item">
+              <span class="stat-num" id="profilePostCount">0</span>
+              <span class="stat-label">Постов</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-num" id="profileLikeCount">0</span>
+              <span class="stat-label">Лайков</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-num" id="profileFollowerCount">0</span>
+              <span class="stat-label">Подписчиков</span>
+            </div>
+          </div>
+          <button class="follow-btn" id="followBtn" onclick="toggleFollow()"></button>
+        </div>
+        <div id="userPostsContainer"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- IMAGE MODAL -->
+<div class="img-modal" id="imgModal" onclick="closeImgModal()">
+  <button class="img-modal-close" onclick="closeImgModal()">✕</button>
+  <img id="imgModalSrc" src="" alt="">
+</div>
+
+
+
+<script>
+// ===== STATE =====
+let currentUser = null;
+let mqttClient = null;
+let selectedImageBase64 = null;
+let viewingUser = null;
+let allUsers = {};
+let allPosts = [];
+let allNotifications = [];
+
+// ===== LOCALSTORAGE HELPERS =====
+function saveUsers() { localStorage.setItem('vibe_users', JSON.stringify(allUsers)); }
+function savePosts() { localStorage.setItem('vibe_posts', JSON.stringify(allPosts)); }
+function saveNotifications() { localStorage.setItem('vibe_notifs_' + currentUser.username, JSON.stringify(allNotifications)); }
+
+function loadAll() {
+  allUsers = JSON.parse(localStorage.getItem('vibe_users') || '{}');
+  allPosts = JSON.parse(localStorage.getItem('vibe_posts') || '[]');
+}
+
+function loadNotifications() {
+  if (!currentUser) return;
+  allNotifications = JSON.parse(localStorage.getItem('vibe_notifs_' + currentUser.username) || '[]');
+}
+
+// ===== AUTH =====
+function switchAuthTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach((t,i) => {
+    t.classList.toggle('active', (i === 0 && tab==='login') || (i===1 && tab==='register'));
+  });
+  document.getElementById('loginForm').style.display = tab==='login' ? 'block' : 'none';
+  document.getElementById('registerForm').style.display = tab==='register' ? 'block' : 'none';
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('registerError').textContent = '';
+}
+
+function doRegister() {
+  const name = document.getElementById('regName').value.trim();
+  const username = document.getElementById('regUser').value.trim().toLowerCase().replace(/[^a-z0-9_]/g,'');
+  const bio = document.getElementById('regBio').value.trim();
+  const pass = document.getElementById('regPass').value;
+  const pass2 = document.getElementById('regPass2').value;
+  const err = document.getElementById('registerError');
+
+  if (!name) { err.textContent = 'Введи имя'; return; }
+  if (!username) { err.textContent = 'Введи username (только латиница, цифры, _)'; return; }
+  if (!pass) { err.textContent = 'Придумай пароль'; return; }
+  if (pass !== pass2) { err.textContent = 'Пароли не совпадают'; return; }
+  if (allUsers[username]) { err.textContent = 'Этот username занят'; return; }
+  if (pass.length < 4) { err.textContent = 'Пароль слишком короткий'; return; }
+
+  allUsers[username] = {
+    name, username, bio,
+    password: btoa(pass),
+    avatar: null,
+    followers: [],
+    following: [],
+    createdAt: Date.now()
+  };
+  saveUsers();
+  err.style.color = '#22c55e';
+  err.textContent = 'Аккаунт создан! Войди ↑';
+  switchAuthTab('login');
+  document.getElementById('loginUser').value = username;
+}
+
+function doLogin() {
+  const username = document.getElementById('loginUser').value.trim().toLowerCase();
+  const pass = document.getElementById('loginPass').value;
+  const err = document.getElementById('loginError');
+
+  if (!username || !pass) { err.textContent = 'Заполни все поля'; return; }
+  const user = allUsers[username];
+  if (!user) { err.textContent = 'Пользователь не найден'; return; }
+  if (atob(user.password) !== pass) { err.textContent = 'Неверный пароль'; return; }
+
+  currentUser = user;
+  sessionStorage.setItem('vibe_session', username);
+  startApp();
+}
+
+function doLogout() {
+  if (!confirm('Выйти из аккаунта?')) return;
+  currentUser = null;
+  sessionStorage.removeItem('vibe_session');
+  if (mqttClient) mqttClient.end();
+  document.getElementById('appScreen').style.display = 'none';
+  document.getElementById('authScreen').style.display = 'flex';
+  closeSidebar();
+}
+
+// ===== MQTT =====
+function initMQTT() {
+  const clientId = 'vibe_' + currentUser.username + '_' + Math.random().toString(36).substr(2,6);
+  try {
+    mqttClient = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', {
+      clientId,
+      clean: true,
+      reconnectPeriod: 3000,
+      connectTimeout: 8000
+    });
+
+    mqttClient.on('connect', () => {
+      setConnStatus(true);
+      mqttClient.subscribe('vibe/posts');
+      mqttClient.subscribe('vibe/likes');
+      mqttClient.subscribe('vibe/comments');
+      mqttClient.subscribe('vibe/follows');
+      mqttClient.subscribe('vibe/profiles');
+    });
+
+    mqttClient.on('disconnect', () => setConnStatus(false));
+    mqttClient.on('error', () => setConnStatus(false));
+    mqttClient.on('offline', () => setConnStatus(false));
+
+    mqttClient.on('message', (topic, message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        if (data.sender === currentUser.username) return; // skip own broadcasts
+        handleMQTT(topic, data);
+      } catch(e) {}
+    });
+  } catch(e) {
+    setConnStatus(false);
+  }
+}
+
+function setConnStatus(connected) {}
+
+function publish(topic, data) {
+  if (mqttClient && mqttClient.connected) {
+    mqttClient.publish(topic, JSON.stringify({ ...data, sender: currentUser.username }));
+  }
+}
+
+function handleMQTT(topic, data) {
+  if (topic === 'vibe/posts') {
+    // New post from someone
+    if (!allPosts.find(p => p.id === data.post.id)) {
+      allPosts.unshift(data.post);
+      savePosts();
+      renderFeed();
+    }
+  } else if (topic === 'vibe/likes') {
+    const post = allPosts.find(p => p.id === data.postId);
+    if (post) {
+      if (data.action === 'like') {
+        if (!post.likes) post.likes = [];
+        if (!post.likes.includes(data.username)) post.likes.push(data.username);
+        // Notification for post owner
+        if (post.author === currentUser.username) {
+          addNotification(`❤️ <strong>${data.username}</strong> лайкнул твой пост`);
+        }
+      } else {
+        post.likes = (post.likes||[]).filter(u => u !== data.username);
+      }
+      savePosts();
+      renderFeed();
+    }
+  } else if (topic === 'vibe/comments') {
+    const post = allPosts.find(p => p.id === data.postId);
+    if (post) {
+      if (!post.comments) post.comments = [];
+      post.comments.push(data.comment);
+      if (post.author === currentUser.username) {
+        addNotification(`💬 <strong>${data.comment.author}</strong> прокомментировал твой пост`);
+      }
+      savePosts();
+      renderFeed();
+    }
+  } else if (topic === 'vibe/follows') {
+    const user = allUsers[data.target];
+    if (user) {
+      if (data.action === 'follow') {
+        if (!user.followers.includes(data.username)) user.followers.push(data.username);
+        if (data.target === currentUser.username) {
+          addNotification(`👤 <strong>${data.username}</strong> подписался на тебя`);
+          currentUser.followers = user.followers;
+        }
+      } else {
+        user.followers = user.followers.filter(u => u !== data.username);
+        if (data.target === currentUser.username) currentUser.followers = user.followers;
+      }
+      saveUsers();
+    }
+  } else if (topic === 'vibe/profiles') {
+    if (allUsers[data.username]) {
+      allUsers[data.username].name = data.name;
+      allUsers[data.username].bio = data.bio;
+      if (data.avatar) allUsers[data.username].avatar = data.avatar;
+      saveUsers();
+      renderFeed();
+    }
+  }
+}
+
+function addNotification(html) {
+  const notif = { html, time: Date.now(), id: Date.now() + Math.random() };
+  allNotifications.unshift(notif);
+  if (allNotifications.length > 50) allNotifications.pop();
+  saveNotifications();
+  renderNotifications();
+  document.getElementById('notifBadge').classList.add('show');
+}
+
+// ===== APP START =====
+function startApp() {
+  loadNotifications();
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'block';
+  updateTopbarAvatar();
+  renderFeed();
+  renderMyProfile();
+  renderNotifications();
+  initMQTT();
+}
+
+function updateTopbarAvatar() {
+  const el = document.getElementById('topbarAvatar');
+  if (currentUser.avatar) {
+    el.innerHTML = `<img src="${currentUser.avatar}" alt="">`;
+  } else {
+    el.textContent = (currentUser.name || currentUser.username)[0].toUpperCase();
+    el.style.background = 'var(--blue-light)';
+    el.style.color = 'var(--blue)';
+    el.style.fontSize = '14px';
+    el.style.fontWeight = '800';
+    el.style.display = 'flex';
+    el.style.alignItems = 'center';
+    el.style.justifyContent = 'center';
+  }
+}
+
+// ===== SIDEBAR =====
+function toggleSidebar() {
+  const s = document.getElementById('sidebar');
+  const o = document.getElementById('sidebarOverlay');
+  const b = document.getElementById('burgerBtn');
+  const open = s.classList.contains('open');
+  s.classList.toggle('open', !open);
+  o.classList.toggle('show', !open);
+  b.classList.toggle('active', !open);
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+  document.getElementById('burgerBtn').classList.remove('active');
+}
+
+// ===== PANELS =====
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+
+  if (name === 'notifications') {
+    document.getElementById('notifBadge').classList.remove('show');
+  }
+  if (name === 'myprofile') {
+    renderMyProfile();
+  }
+}
+
+function showMyProfile() {
+  renderMyProfile();
+  showPanel('myprofile');
+}
+
+// ===== POSTS =====
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2,5);
+}
+
+function handleImageSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 3 * 1024 * 1024) {
+    alert('Изображение слишком большое (максимум 3MB)');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    selectedImageBase64 = ev.target.result;
+    document.getElementById('imgPreview').src = selectedImageBase64;
+    document.getElementById('imgPreviewWrap').classList.add('show');
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeImage() {
+  selectedImageBase64 = null;
+  document.getElementById('imgPreviewWrap').classList.remove('show');
+  document.getElementById('imgPreview').src = '';
+  document.getElementById('imgFileInput').value = '';
+}
+
+function publishPost() {
+  const text = document.getElementById('postTextInput').value.trim();
+  if (!text && !selectedImageBase64) return;
+
+  const post = {
+    id: generateId(),
+    author: currentUser.username,
+    authorName: currentUser.name,
+    authorAvatar: currentUser.avatar,
+    text,
+    image: selectedImageBase64,
+    likes: [],
+    comments: [],
+    time: Date.now()
+  };
+
+  allPosts.unshift(post);
+  savePosts();
+
+  publish('vibe/posts', { post });
+
+  document.getElementById('postTextInput').value = '';
+  removeImage();
+  renderFeed();
+}
+
+function renderFeed() {
+  const container = document.getElementById('postsContainer');
+  const me = currentUser;
+
+  // Update create post avatar
+  const cpAvatar = document.getElementById('createPostAvatar');
+  renderAvatarEl(cpAvatar, me.name, me.avatar, 40);
+
+  if (allPosts.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="emoji">✨</div><p>Пока постов нет. Будь первым!</p></div>`;
+    return;
+  }
+
+  container.innerHTML = allPosts.map(post => buildPostHTML(post)).join('');
+}
+
+function buildPostHTML(post) {
+  const likedByMe = (post.likes||[]).includes(currentUser.username);
+  const likesCount = (post.likes||[]).length;
+  const commCount = (post.comments||[]).length;
+  const timeStr = formatTime(post.time);
+  const authorUser = allUsers[post.author] || {};
+  const avatarHtml = buildAvatarHTML(post.authorName || post.author, post.authorAvatar || authorUser.avatar, 40);
+  const imageHtml = post.image ? `<img class="post-image" src="${post.image}" alt="" onclick="openImgModal('${escapeAttr(post.image)}')" loading="lazy">` : '';
+  const commentsHtml = (post.comments||[]).map(c => {
+    const cu = allUsers[c.author] || {};
+    const cavHtml = buildAvatarHTML(c.authorName || c.author, c.authorAvatar || cu.avatar, 30);
+    return `<div class="comment-item">
+      <div class="comment-avatar">${cavHtml}</div>
+      <div class="comment-bubble">
+        <strong onclick="openUserProfile('${escapeAttr(c.author)}')">${escapeHtml(c.authorName || c.author)}</strong>
+        <p>${escapeHtml(c.text)}</p>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="post-card" id="post-${post.id}">
+    <div class="post-header">
+      <div class="post-avatar" onclick="openUserProfile('${escapeAttr(post.author)}')">${avatarHtml}</div>
+      <div class="post-meta">
+        <div class="post-username" onclick="openUserProfile('${escapeAttr(post.author)}')">${escapeHtml(post.authorName || post.author)} <span style="color:var(--text-soft);font-weight:600;font-size:12px;">@${escapeHtml(post.author)}</span></div>
+        <div class="post-time">${timeStr}</div>
+      </div>
+    </div>
+    <div class="post-body">
+      ${post.text ? `<div class="post-text">${escapeHtml(post.text)}</div>` : ''}
+      ${imageHtml}
+    </div>
+    <div class="post-actions">
+      <button class="action-btn ${likedByMe ? 'liked' : ''}" onclick="toggleLike('${post.id}')">
+        <span class="icon">${likedByMe ? '❤️' : '🤍'}</span>
+        <span>${likesCount > 0 ? likesCount : ''}</span>
+      </button>
+      <button class="action-btn" onclick="toggleComments('${post.id}')">
+        <span class="icon">💬</span>
+        <span>${commCount > 0 ? commCount : ''}</span>
+      </button>
+    </div>
+    <div class="comments-section" id="comments-${post.id}">
+      ${commentsHtml}
+      <div class="comment-input-row">
+        <input class="comment-input" id="commentInput-${post.id}" placeholder="Написать комментарий..." onkeydown="if(event.key==='Enter')sendComment('${post.id}')">
+        <button class="comment-send-btn" onclick="sendComment('${post.id}')">➤</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildAvatarHTML(name, avatar, size) {
+  if (avatar) {
+    return `<img src="${avatar}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+  }
+  return (name || '?')[0].toUpperCase();
+}
+
+function renderAvatarEl(el, name, avatar, size) {
+  if (avatar) {
+    el.innerHTML = `<img src="${avatar}" alt="">`;
+    el.style.background = '';
+  } else {
+    el.textContent = (name || '?')[0].toUpperCase();
+    el.style.background = 'var(--blue-light)';
+    el.style.color = 'var(--blue)';
+    el.style.fontWeight = '800';
+    el.style.fontSize = size * 0.35 + 'px';
+  }
+}
+
+function toggleLike(postId) {
+  const post = allPosts.find(p => p.id === postId);
+  if (!post) return;
+  if (!post.likes) post.likes = [];
+  const idx = post.likes.indexOf(currentUser.username);
+  let action;
+  if (idx === -1) {
+    post.likes.push(currentUser.username);
+    action = 'like';
+    // Notify post author (local)
+    if (post.author !== currentUser.username) {
+      const ownerNotifs = JSON.parse(localStorage.getItem('vibe_notifs_' + post.author) || '[]');
+      ownerNotifs.unshift({ html: `❤️ <strong>${currentUser.username}</strong> лайкнул твой пост`, time: Date.now(), id: Date.now() });
+      localStorage.setItem('vibe_notifs_' + post.author, JSON.stringify(ownerNotifs));
+    }
+  } else {
+    post.likes.splice(idx, 1);
+    action = 'unlike';
+  }
+  savePosts();
+  publish('vibe/likes', { postId, username: currentUser.username, action });
+  renderFeed();
+}
+
+function toggleComments(postId) {
+  const section = document.getElementById('comments-' + postId);
+  if (section) section.classList.toggle('show');
+}
+
+function sendComment(postId) {
+  const input = document.getElementById('commentInput-' + postId);
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+
+  const post = allPosts.find(p => p.id === postId);
+  if (!post) return;
+
+  const comment = {
+    id: generateId(),
+    author: currentUser.username,
+    authorName: currentUser.name,
+    authorAvatar: currentUser.avatar,
+    text,
+    time: Date.now()
+  };
+
+  if (!post.comments) post.comments = [];
+  post.comments.push(comment);
+
+  // Notify post owner (local)
+  if (post.author !== currentUser.username) {
+    const ownerNotifs = JSON.parse(localStorage.getItem('vibe_notifs_' + post.author) || '[]');
+    ownerNotifs.unshift({ html: `💬 <strong>${currentUser.username}</strong> прокомментировал твой пост`, time: Date.now(), id: Date.now() });
+    localStorage.setItem('vibe_notifs_' + post.author, JSON.stringify(ownerNotifs));
+  }
+
+  savePosts();
+  publish('vibe/comments', { postId, comment });
+  input.value = '';
+  renderFeed();
+  // Re-show comments section
+  setTimeout(() => {
+    const section = document.getElementById('comments-' + postId);
+    if (section) section.classList.add('show');
+  }, 50);
+}
+
+// ===== USER PROFILE =====
+function openUserProfile(username) {
+  if (username === currentUser.username) {
+    showMyProfile();
+    return;
+  }
+  viewingUser = allUsers[username];
+  if (!viewingUser) return;
+
+  showPanel('userprofile');
+  renderUserProfile(username);
+}
+
+function renderUserProfile(username) {
+  const user = allUsers[username] || {};
+  const userPosts = allPosts.filter(p => p.author === username);
+  const totalLikes = userPosts.reduce((sum, p) => sum + (p.likes||[]).length, 0);
+  const isFollowing = (currentUser.following||[]).includes(username);
+
+  document.getElementById('profileViewName').textContent = user.name || username;
+  document.getElementById('profileViewHandle').textContent = '@' + username;
+  document.getElementById('profileViewBio').textContent = user.bio || '';
+  document.getElementById('profilePostCount').textContent = userPosts.length;
+  document.getElementById('profileLikeCount').textContent = totalLikes;
+  document.getElementById('profileFollowerCount').textContent = (user.followers||[]).length;
+
+  const bigAv = document.getElementById('profileBigAvatar');
+  renderAvatarEl(bigAv, user.name || username, user.avatar, 88);
+
+  const followBtn = document.getElementById('followBtn');
+  followBtn.textContent = isFollowing ? '✓ Подписан' : '+ Подписаться';
+  followBtn.className = 'follow-btn' + (isFollowing ? ' following' : '');
+
+  viewingUser = user;
+  viewingUser.username = username;
+
+  const userPostsEl = document.getElementById('userPostsContainer');
+  if (userPosts.length === 0) {
+    userPostsEl.innerHTML = `<div class="empty-state"><div class="emoji">📝</div><p>Постов пока нет</p></div>`;
+  } else {
+    userPostsEl.innerHTML = userPosts.map(p => buildPostHTML(p)).join('');
+  }
+}
+
+function toggleFollow() {
+  if (!viewingUser) return;
+  const username = viewingUser.username;
+  const user = allUsers[username];
+  if (!user) return;
+
+  if (!currentUser.following) currentUser.following = [];
+  if (!user.followers) user.followers = [];
+
+  const idx = currentUser.following.indexOf(username);
+  let action;
+  if (idx === -1) {
+    currentUser.following.push(username);
+    if (!user.followers.includes(currentUser.username)) user.followers.push(currentUser.username);
+    action = 'follow';
+    // Notify (local)
+    const targetNotifs = JSON.parse(localStorage.getItem('vibe_notifs_' + username) || '[]');
+    targetNotifs.unshift({ html: `👤 <strong>${currentUser.username}</strong> подписался на тебя`, time: Date.now(), id: Date.now() });
+    localStorage.setItem('vibe_notifs_' + username, JSON.stringify(targetNotifs));
+  } else {
+    currentUser.following.splice(idx, 1);
+    user.followers = user.followers.filter(u => u !== currentUser.username);
+    action = 'unfollow';
+  }
+
+  allUsers[currentUser.username] = { ...allUsers[currentUser.username], following: currentUser.following };
+  saveUsers();
+  publish('vibe/follows', { username: currentUser.username, target: username, action });
+  renderUserProfile(username);
+}
+
+// ===== MY PROFILE =====
+function renderMyProfile() {
+  if (!currentUser) return;
+  document.getElementById('myProfileName').textContent = currentUser.name;
+  document.getElementById('myProfileHandle').textContent = '@' + currentUser.username;
+  document.getElementById('editName').value = currentUser.name || '';
+  document.getElementById('editBio').value = currentUser.bio || '';
+
+  const avEl = document.getElementById('myAvatarEdit');
+  if (currentUser.avatar) {
+    avEl.innerHTML = `<img src="${currentUser.avatar}" alt=""><div class="my-avatar-overlay">📷</div>`;
+  } else {
+    avEl.innerHTML = `<span style="font-size:22px;font-weight:800;color:var(--blue)">${(currentUser.name||'?')[0].toUpperCase()}</span><div class="my-avatar-overlay">📷</div>`;
+  }
+
+  const myPosts = allPosts.filter(p => p.author === currentUser.username);
+  const container = document.getElementById('myPostsContainer');
+  if (myPosts.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="emoji">📝</div><p>У тебя пока нет постов</p></div>`;
+  } else {
+    container.innerHTML = myPosts.map(p => buildPostHTML(p)).join('');
+  }
+}
+
+function saveProfile() {
+  const name = document.getElementById('editName').value.trim();
+  const bio = document.getElementById('editBio').value.trim();
+  if (!name) { alert('Имя не может быть пустым'); return; }
+
+  currentUser.name = name;
+  currentUser.bio = bio;
+  allUsers[currentUser.username].name = name;
+  allUsers[currentUser.username].bio = bio;
+  saveUsers();
+
+  publish('vibe/profiles', { username: currentUser.username, name, bio, avatar: currentUser.avatar });
+
+  updateTopbarAvatar();
+  renderMyProfile();
+  renderFeed();
+  alert('Профиль сохранён! ✓');
+}
+
+function handleAvatarUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { alert('Аватарка слишком большая (макс 2MB)'); return; }
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    currentUser.avatar = ev.target.result;
+    allUsers[currentUser.username].avatar = ev.target.result;
+    // Update all posts by this user
+    allPosts.forEach(p => { if (p.author === currentUser.username) p.authorAvatar = ev.target.result; });
+    saveUsers();
+    savePosts();
+    publish('vibe/profiles', { username: currentUser.username, name: currentUser.name, bio: currentUser.bio, avatar: ev.target.result });
+    updateTopbarAvatar();
+    renderMyProfile();
+    renderFeed();
+  };
+  reader.readAsDataURL(file);
+}
+
+// ===== NOTIFICATIONS =====
+function renderNotifications() {
+  const container = document.getElementById('notifContainer');
+  if (!allNotifications || allNotifications.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="emoji">🔔</div><p>Пока уведомлений нет</p></div>`;
+    return;
+  }
+  container.innerHTML = allNotifications.map(n => `
+    <div class="notif-item">
+      <div class="notif-icon">🔔</div>
+      <div>
+        <div class="notif-text">${n.html}</div>
+        <div class="notif-time">${formatTime(n.time)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ===== IMAGE MODAL =====
+function openImgModal(src) {
+  document.getElementById('imgModalSrc').src = src;
+  document.getElementById('imgModal').classList.add('show');
+}
+
+function closeImgModal() {
+  document.getElementById('imgModal').classList.remove('show');
+  document.getElementById('imgModalSrc').src = '';
+}
+
+// ===== UTILS =====
+function formatTime(ts) {
+  const diff = Date.now() - ts;
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return 'только что';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return min + ' мин назад';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + ' ч назад';
+  const d = Math.floor(hr / 24);
+  return d + ' д назад';
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escapeAttr(str) {
+  if (!str) return '';
+  return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', () => {
+  loadAll();
+
+  // Check session
+  const savedSession = sessionStorage.getItem('vibe_session');
+  if (savedSession && allUsers[savedSession]) {
+    currentUser = allUsers[savedSession];
+    startApp();
+  }
+
+  // Enter key for auth
+  document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('regPass2').addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(); });
+});
+</script>
+
+</body>
+</html>
